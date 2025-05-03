@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "target": "es2020",
+    "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "strict": true,
+    "baseUrl": ".",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*","src/types"],
+  "exclude": ["node_modules", "../frontend"]
+}

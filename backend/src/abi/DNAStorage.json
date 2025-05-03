@@ -1,0 +1,13 @@
+[
+    {
+    "constant": false,
+    "inputs": [
+        { "name": "_cid", "type": "string" },
+        { "name": "_filename", "type": "string" }
+    ],
+    "name": "uploadContent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+    }
+]
