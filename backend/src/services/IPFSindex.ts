@@ -113,6 +113,10 @@ export class IPFSManager {
     private ipfs;
     private connected: boolean = false;
 
+    public isConnected(): boolean {
+        return this.connected;
+    }
+
     constructor(config: IPFSConfig) {
         this.ipfs = create({
             host: config.host,
@@ -123,29 +127,61 @@ export class IPFSManager {
 
     public async connect(): Promise<void> {
         try {
-            const version = await this.ipfs.version();
-            console.log(`Connected to IPFS version ${version.version}`);
-            this.connected = true;
-        } catch (error) {
-            console.error('Failed to connect to IPFS:', error);
-            throw error;
+          const version = await this.ipfs.version(); // Safely verify connection
+          console.log(`✅ Connected to IPFS. Version: ${version.version}`);
+          this.connected = true;
+        } catch (error: any) {
+          console.error('❌ Failed to connect to IPFS:', error);
+          this.connected = false;
+      
+          if (error.code === 'ECONNREFUSED') {
+            throw new Error('Network error: IPFS daemon is not running. Please start the IPFS daemon first.');
+          } else {
+            throw new Error(`Network error: Unable to connect to IPFS node. ${error.message}`);
+          }
+        }
+      }
+      
+    public async store(content: Buffer): Promise<StorageMetadata> {
+        if (!this.connected) {
+            try {
+                await this.connect();
+            } catch (error: any) {
+                throw new Error(`IPFS Connection Error: ${error.message}. Please ensure IPFS daemon is running and try again.`);
+            }
+        }
+
+        try {
+            if (!content || content.length === 0) {
+                throw new Error('Invalid content: Empty buffer received');
+            }
+
+            const result = await this.ipfs.add(content);
+            if (!result || !result.cid) {
+                throw new Error('Invalid response from IPFS node');
+            }
+
+            return {
+                cid: result.cid.toString(),
+                size: result.size,
+                timestamp: Date.now()
+            };
+        } catch (error: any) {
+            console.error('Failed to store content:', error);
+            if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+                throw new Error('Network error: Lost connection to IPFS node. Please check if IPFS daemon is still running and try again.');
+            } else if (error.message.includes('timeout')) {
+                throw new Error('Network error: Request timed out. Please check your network connection and try again.');
+            } else if (error.message.includes('Invalid content')) {
+                throw new Error(error.message);
+            } else {
+                throw new Error(`Upload error: ${error.message}. Please try again later or contact support if the issue persists.`);
+            }
         }
     }
 
-    public async store(content: Buffer): Promise<StorageMetadata> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
-
-        const result = await this.ipfs.add(content);
-
-        return {
-            cid: result.cid.toString(),
-            size: result.size,
-            timestamp: Date.now()
-        };
-    }
-
     public async retrieve(cid: string): Promise<Buffer> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
+        if (!this.isConnected) throw new Error('Not connected to IPFS');
 
         const chunks: Uint8Array[] = [];
         for await (const chunk of this.ipfs.cat(cid)) {
@@ -156,17 +192,17 @@ export class IPFSManager {
     }
 
     public async pin(cid: string): Promise<void> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
+        if (!this.isConnected) throw new Error('Not connected to IPFS');
         await this.ipfs.pin.add(cid);
     }
 
     public async unpin(cid: string): Promise<void> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
+        if (!this.isConnected) throw new Error('Not connected to IPFS');
         await this.ipfs.pin.rm(cid);
     }
 
     public async listPinned(): Promise<string[]> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
+        if (!this.isConnected) throw new Error('Not connected to IPFS');
         
         const pins: string[] = [];
         for await (const pin of this.ipfs.pin.ls()) {
@@ -176,7 +212,7 @@ export class IPFSManager {
     }
 
     public async getStats(cid: string): Promise<any> {
-        if (!this.connected) throw new Error('Not connected to IPFS');
+        if (!this.isConnected) throw new Error('Not connected to IPFS');
         
         const stats = await this.ipfs.files.stat(`/ipfs/${cid}`);
         return {

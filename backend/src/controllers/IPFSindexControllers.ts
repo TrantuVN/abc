@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
-import  { IPFSImageIndexer, IPFSManager, IPFSQuery } from '../services/IPFSindex';
+import  { IPFSManager, IPFSQuery } from '../services/IPFSindex';
 import dotenv from 'dotenv';
+import express from 'express';
 
 
 
 dotenv.config();
 
 const ipfs = new IPFSManager({
-  host: 'localhost',
+  host: '127.0.0.1',
   port: 5001,
   protocol: 'http'
 });
@@ -20,12 +21,43 @@ export const initIPFS = async () => {
 export const storeContent = async (req: Request, res: Response) => {
   try {
     const buffer = req.file?.buffer;
-    if (!buffer) return res.status(400).json({ error: 'No file uploaded' });
+// 
+    if (!buffer) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
 
-    const result = await ipfs.store(buffer);
-    res.json(result);
+    // Check IPFS connection status
+    if (!ipfs.isConnected()) {
+      try {
+        await ipfs.connect();
+      } catch (connError: any) {
+        console.error('IPFS Connection Error:', connError);
+        return res.status(503).json({
+          error: 'IPFS Connection Error',
+          details: 'Unable to connect to IPFS node. Please ensure IPFS daemon is running.',
+          message: connError.message
+        });
+      }
+    }
+
+    try {
+      const result = await ipfs.store(buffer);
+      res.json(result);
+    } catch (uploadError: any) {
+      console.error('IPFS Upload Error:', uploadError);
+      return res.status(503).json({
+        error: 'IPFS Upload Failed',
+        details: 'Failed to upload content to IPFS. Please check your network connection.',
+        message: uploadError.message
+      });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Unexpected Error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      details: 'An unexpected error occurred while processing your request.',
+      message: error.message
+    });
   }
 };
 
@@ -84,3 +116,5 @@ export const queryIndex = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const ipfsRoutes = express.Router();

@@ -64,7 +64,9 @@ const DNAUploader: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     setIsUploading(true);
 
     try {
@@ -108,10 +110,14 @@ const DNAUploader: React.FC = () => {
       }
 
       // Step 3: Upload to IPFS
+      
       const ipfsForm = new FormData();
-      ipfsForm.append('file', content);
+          ipfsForm.append('file', content);
 
-      const ipfsResponse = await axios.post(`${API_BASE}/api/ipfs/store`, ipfsForm);
+      const ipfsResponse = await axios.post(`${API_BASE}/api/ipfs/store`, ipfsForm, {
+        headers: {
+          'Content-Type': 'multipart/form-data'} 
+      });
       const cid = ipfsResponse.data.cid;
 
       // Step 4: Index metadata
@@ -139,8 +145,9 @@ const DNAUploader: React.FC = () => {
 
       setIsSubmitted(true);
     } catch (err: any) {
-      console.error('❌ Upload failed:', err);
-      alert(`Upload failed: ${err.response?.data?.message || err.message}`);
+      const { response, message } = err;
+      console.error('❌ Upload failed:', message);
+      alert(`Upload failed: ${response?.data?.message || message}`);
     }
 
     setIsUploading(false);
@@ -252,7 +259,7 @@ const DNAUploader: React.FC = () => {
                 />
               {encodedDNA && (
                 <Box className="dna-strands" sx={{ mt: 2 }}>
-                  <Typography variant="h6">ENCODED</Typography>
+                  <Typography variant="h6">DNA STRANDS</Typography>
                   <Typography sx={{ whiteSpace: 'pre-wrap' }}>{encodedDNA}</Typography>
                 </Box>
               )}
