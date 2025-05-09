@@ -1,29 +1,48 @@
-// src/controllers/dnaencodeController.ts
-
 import { Request, Response } from 'express';
-import axios from 'axios';
-import FormData from 'form-data';
+import fs from 'fs';
+import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { v4 as uuidv4 } from 'uuid';
 
+const execFileAsync = promisify(execFile);
+
+// POST /api/dna/encode-dna
 export const encodeDNAHandler = async (req: Request, res: Response) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
   try {
-    const form = new FormData();
-    form.append('file', req.file.buffer, {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype
-    });
+    const file = req.file;
 
-    const response = await axios.post('http://localhost:8000/encode-dna/', form, {
-      headers: form.getHeaders()
-    });
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
 
-    return res.json(response.data);
+    // Save uploaded file to a temp location
+    const tempDir = path.resolve(__dirname, '../../tmp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+
+    const tempFilePath = path.join(tempDir, `${uuidv4()}_${file.originalname}`);
+    fs.writeFileSync(tempFilePath, file.buffer);
+
+    console.log(`📦 Saved file to ${tempFilePath}`);
+
+    // Run wukong.py with the temp file as input
+    const pythonScript = path.resolve(__dirname, '../../wukong.py');
+
+    const { stdout, stderr } = await execFileAsync('python', [
+      pythonScript,
+      tempFilePath // You may need to adjust the CLI interface inside wukong.py
+    ]);
+
+    if (stderr) console.warn('⚠️ Python stderr:', stderr);
+
+    // Clean up
+    fs.unlinkSync(tempFilePath);
+
+    // Send DNA result back
+    res.status(200).json({ result: stdout.trim() });
+
   } catch (error: any) {
-    console.error('DNA encoding error:', error.message);
-    return res.status(500).json({ error: 'DNA encoding failed' });
+    console.error('❌ DNA encoding error:', error);
+    res.status(500).json({ error: 'Encoding failed', details: error.message });
   }
 };
-

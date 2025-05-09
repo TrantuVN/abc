@@ -1,20 +1,21 @@
 import { Request, Response } from 'express';
-import  { IPFSManager, IPFSQuery } from '../services/IPFSindex';
 import dotenv from 'dotenv';
 import express from 'express';
+import { create } from 'ipfs-http-client'
 
 
 
 dotenv.config();
 
-const ipfs = new IPFSManager({
+const ipfs = create({
   host: '127.0.0.1',
   port: 5001,
   protocol: 'http'
 });
 
 export const initIPFS = async () => {
-    await ipfs.connect();
+    // IPFS client doesn't require explicit connection as it's handled internally
+    return;
   };
 
 // Upload content to IPFS
@@ -27,9 +28,12 @@ export const storeContent = async (req: Request, res: Response) => {
     }
 
     // Check IPFS connection status
-    if (!ipfs.isConnected()) {
+    try {
+      await ipfs.id();
+    } catch {
       try {
-        await ipfs.connect();
+        // IPFS client auto-connects, no explicit connect needed
+        await ipfs.id(); // Verify connection by checking node ID
       } catch (connError: any) {
         console.error('IPFS Connection Error:', connError);
         return res.status(503).json({
@@ -41,7 +45,7 @@ export const storeContent = async (req: Request, res: Response) => {
     }
 
     try {
-      const result = await ipfs.store(buffer);
+      const result = await ipfs.add(buffer);
       res.json(result);
     } catch (uploadError: any) {
       console.error('IPFS Upload Error:', uploadError);
@@ -65,7 +69,7 @@ export const storeContent = async (req: Request, res: Response) => {
 export const retrieveContent = async (req: Request, res: Response) => {
   try {
     const { cid } = req.params;
-    const content = await ipfs.retrieve(cid);
+    const content = await ipfs.cat(cid);
     res.set('Content-Type', 'application/octet-stream');
     res.send(content);
   } catch (error: any) {
@@ -76,7 +80,7 @@ export const retrieveContent = async (req: Request, res: Response) => {
 // List all pinned items
 export const listPinnedItems = async (_req: Request, res: Response) => {
   try {
-    const pins = await ipfs.listPinned();
+    const pins = await ipfs.pin.ls();
     res.json({ pins });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -87,7 +91,7 @@ export const listPinnedItems = async (_req: Request, res: Response) => {
 export const pinCID = async (req: Request, res: Response) => {
   try {
     const { cid } = req.body;
-    await ipfs.pin(cid);
+    await ipfs.pin.add(cid);
     res.json({ pinned: cid });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -98,7 +102,7 @@ export const pinCID = async (req: Request, res: Response) => {
 export const unpinCID = async (req: Request, res: Response) => {
   try {
     const { cid } = req.body;
-    await ipfs.unpin(cid);
+    await ipfs.pin.rm(cid);
     res.json({ unpinned: cid });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -106,11 +110,13 @@ export const unpinCID = async (req: Request, res: Response) => {
 };
 
 // Query content metadata
-const ipfsQuery = new IPFSQuery('http://localhost:5001');
+// TODO: Define or import IPFSQuery class before using it
+const ipfsQuery = ipfs;
 
 export const queryIndex = async (req: Request, res: Response) => {
   try {
-    const results = await ipfsQuery.queryIndex(req.body);
+    // Use appropriate IPFS methods based on your query requirements
+    const results = await ipfs.dag.get(req.body.cid);
     res.json(results);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

@@ -18,11 +18,10 @@ import {
   LinearProgress, Checkbox
 } from '@mui/material';
 
-import { JsonRpcProvider, Wallet, ethers } from 'ethers';
+import {  Wallet, ethers } from 'ethers';
 import DNAStorageABI from './abi/DNAStorage.json';
 import ScoinABI from './abi/Scoin.json';
 import axios from 'axios';
-
 
 
 declare global {
@@ -51,6 +50,7 @@ const DNAUploader: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState({ipfsCid: '', transactionHash: '', scoinBalance: '', totalSupply: ''});
+  const [showEncodedDNA, setShowEncodedDNA] = useState(false);
 
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -64,26 +64,59 @@ const DNAUploader: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
-      return;
-    }
+    if (!file) return;
     setIsUploading(true);
-
+  
     try {
-      // Step 1: Moderation
+      console.log('Starting upload process...');
+      console.log('API Base URL:', API_BASE);
+      console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
+      // Test backend connection first
+      try {
+        console.log('Testing backend connection...');
+        const testResponse = await axios.get(API_BASE);
+        console.log('Backend connection test:', testResponse.data);
+      } catch (testError: any) {
+        console.error('Backend connection test failed:', testError.message);
+        throw new Error('Cannot connect to backend server. Please ensure the backend is running at ' + API_BASE);
+      }
+
       const modForm = new FormData();
       modForm.append('file', file);
-
-      const moderation = await axios.post(`${API_BASE}/api/moderation/moderate`, modForm);
+      console.log('Sending moderation request...');
+      const moderation = await axios.post(`${API_BASE}/api/moderation/moderate`, modForm, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true,
+        timeout: 10000 // 10 second timeout
+      });
+      console.log('Moderation response:', moderation.data);
+      
       if (!moderation.data.isAllowed) {
         alert('❌ File rejected by moderation.');
         setIsUploading(false);
         return;
       }
-
-      let content = file;
-
-      // Step 2: DNA encoding (if selected)
+  
+      let fileCid = '';
+      let dnaCid = '';
+  
+      // Upload original file to IPFS
+      console.log('Uploading to IPFS...');
+      const fileForm = new FormData();
+      fileForm.append('file', file);
+      const fileUpload = await axios.post(`${API_BASE}/api/ipfs/store`, fileForm, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000 // 30 second timeout for file upload
+      });
+      console.log('IPFS upload response:', fileUpload.data);
+      fileCid = fileUpload.data.cid;
+  
+      // Optional: DNA encoding and upload to IPFS
       if (uploadMethod === 'dna') {
         const dnaForm = new FormData();
         dnaForm.append('file', file);
@@ -92,66 +125,88 @@ const DNAUploader: React.FC = () => {
         dnaForm.append('gcContent', gcContent.toString());
         dnaForm.append('redundancy', redundancy.toString());
         dnaForm.append('errorCorrection', errorCorrection ? 'true' : 'false');
-
+  
         const response = await axios.post(`${API_BASE}/api/dna/encode-dna`, dnaForm);
         const data = response.data;
-
+  
         if (!data.encoded) {
           alert('DNA encoding failed.');
           setIsUploading(false);
           return;
         }
-
+  
         setEncodedDNA(data.encoded);
-        content = new File([data.encoded], file.name, {
-          type: file.type,
-          lastModified: file.lastModified
+  
+        const dnaBlob = new Blob([data.encoded], { type: 'text/plain' });
+        const dnaFile = new File([dnaBlob], `${file.name}.dna.txt`, { type: 'text/plain' });
+        const dnaUploadForm = new FormData();
+        dnaUploadForm.append('file', dnaFile);
+        const dnaUpload = await axios.post(`${API_BASE}/api/ipfs/store`, dnaUploadForm, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        dnaCid = dnaUpload.data.cid;
+      } else {
+        dnaCid = fileCid;
+      }
+  
+      // Index both CIDs
+      await axios.post(`${API_BASE}/api/ipfs/index`, {
+        cid: fileCid,
+        metadata: { title: file.name, creator: 'AppUser', type: 'original', timestamp: Date.now() }
+      });
+      if (uploadMethod === 'dna') {
+        await axios.post(`${API_BASE}/api/ipfs/index`, {
+          cid: dnaCid,
+          metadata: { title: `${file.name}.dna`, creator: 'AppUser', type: 'encoded', timestamp: Date.now() }
         });
       }
-
-      // Step 3: Upload to IPFS
-      
-      const ipfsForm = new FormData();
-          ipfsForm.append('file', content);
-
-      const ipfsResponse = await axios.post(`${API_BASE}/api/ipfs/store`, ipfsForm, {
-        headers: {
-          'Content-Type': 'multipart/form-data'} 
-      });
-      const cid = ipfsResponse.data.cid;
-
-      // Step 4: Index metadata
-      await axios.post(`${API_BASE}/api/ipfs/index`, {
-        cid,
-        metadata: {
-          title: file.name,
-          creator: 'AppUser',
-          timestamp: Date.now()
-        }
-      });
-
-      // Step 5: Upload to blockchain
+  
+      // Upload to blockchain
       const txResponse = await axios.post(`${API_BASE}/api/dna/upload`, {
-        cid,
+        fileCid,
+        dnaCid,
         filename: file.name
       });
-
+  
       setUploadResult({
-        ipfsCid: cid,
+        ipfsCid: fileCid,
         transactionHash: txResponse.data.transactionHash,
         scoinBalance: txResponse.data.scoinBalance,
         totalSupply: txResponse.data.totalSupply
       });
-
+  
       setIsSubmitted(true);
     } catch (err: any) {
-      const { response, message } = err;
-      console.error('❌ Upload failed:', message);
-      alert(`Upload failed: ${response?.data?.message || message}`);
+      console.error('Upload error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        headers: err.response?.headers,
+        config: {
+          url: err.config?.url,
+          method: err.config?.method,
+          headers: err.config?.headers
+        }
+      });
+      
+      let errorMessage = 'Upload failed: ';
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        errorMessage += `${err.response.status} - ${err.response.data?.message || err.message}`;
+      } else if (err.request) {
+        // The request was made but no response was received
+        errorMessage += `No response from server at ${API_BASE}. Please check if the backend is running.`;
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        errorMessage += err.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsUploading(false);
     }
-
-    setIsUploading(false);
-  };
+  };  
 
   const resetForm = () => {
     setFile(null);
@@ -164,6 +219,7 @@ const DNAUploader: React.FC = () => {
     setEncodedDNA('');
     setIsSubmitted(false);
     setIsUploading(false);
+    setShowEncodedDNA(false);
     setUploadResult({ ipfsCid: '', transactionHash: '', scoinBalance: '', totalSupply: '' });
   };
 
@@ -257,12 +313,19 @@ const DNAUploader: React.FC = () => {
                   }
                   label="Error Correction"
                 />
-              {encodedDNA && (
-                <Box className="dna-strands" sx={{ mt: 2 }}>
-                  <Typography variant="h6">DNA STRANDS</Typography>
-                  <Typography sx={{ whiteSpace: 'pre-wrap' }}>{encodedDNA}</Typography>
-                </Box>
-              )}
+            {encodedDNA && (
+                  <>
+                    <Button variant="outlined" fullWidth onClick={() => setShowEncodedDNA(!showEncodedDNA)}>
+                      {showEncodedDNA ? 'Hide Encoded DNA' : 'View Encoded DNA'}
+                    </Button>
+                    {showEncodedDNA && (
+                      <Box className="dna-strands" sx={{ mt: 2 }}>
+                        <Typography variant="h6">DNA STRANDS</Typography>
+                        <Typography sx={{ whiteSpace: 'pre-wrap' }}>{encodedDNA}</Typography>
+                      </Box>
+                    )}
+                  </>
+                )}
               </Box>
             )}
 
