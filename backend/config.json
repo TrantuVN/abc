@@ -1,0 +1,32 @@
+{
+  "blockchain": {
+    "network": "localhost",
+    "port": 8545,
+    "contracts": {
+      "scoin": "0xFa5dC17790490587dA8c597744f0C977cB924D4A",
+      "dnaStorage": "0xFa5dC17790490587dA8c597744f0C977cB924D4A"
+    }
+  },
+  "ipfs": {
+    "host": "localhost",
+    "port": 5001,
+    "protocol": "http",
+    "apiEndpoint": "http://localhost:5001/api/v0"
+  },
+  "moderation": {
+    "minModerators": 3,
+    "confidenceThreshold": 0.8,
+    "reviewTimeout": 86400
+  },
+  "indexer": {
+    "dbPath": "./data/indexer",
+    "pollInterval": 1000,
+    "maxRetries": 5
+  },
+  "raiden": {
+    "endpoint": "http://localhost:5002",
+    "tokenNetwork": "0xYourTokenNetworkAddressHere",
+    "channelTimeout": 500,
+    "revealTimeout": 50
+  }
+}
