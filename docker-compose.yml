@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://backend:3000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/scoin
+      - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - HIVE_API_KEY=U847wrNMozUHAllG3bnahg==
+      - SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/8OuXu30JOp0OCq6ySAxjK
+    depends_on:
+      - mongodb
+      - ipfs
+      - contracts
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb:/data/configdb
+
+  ipfs:
+    image: ipfs/kubo:latest
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8080:8080"
+    volumes:
+      - ipfs_data:/data/ipfs
+
+  contracts:
+    build:
+      context: ./Smart Accounts
+      dockerfile: Dockerfile
+    environment:
+      - PRIVATE_KEY=a53833850b57d8071609126e68f22a3b3bc3834f75ae798eff136d48f95e5d07
+      - SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/8OuXu30JOp0OCq6ySAxjK
+    command: ["npx", "hardhat", "run", "--network", "sepolia", "scripts/deployPST.ts"]
+    volumes:
+      - "./Smart Accounts:/app"
+
+volumes:
+  mongodb_data:
+  ipfs_data:

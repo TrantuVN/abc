@@ -1,0 +1,9 @@
+//dna encoded
+GET https://localhost:3000/encode-dna
+//hive moderation
+POST https://localhost:3000/hive
+//moderation
+POST https://localhost:3000/moderation
+//hash
+GET https://localhost:3000/hash
+Content-Type: application/json

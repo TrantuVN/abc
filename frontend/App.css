@@ -1,0 +1,82 @@
+/* backend/src/app.css */
+
+/* Basic global styles for the body */
+body {
+  margin: 0;
+  padding: 20px; /* Add some padding around the content */
+  font-family: 'Roboto', sans-serif; /* Use Roboto as set in index.html, fallback to sans-serif */
+  background-color: #f0f2f5; /* Light gray background */
+  color: #333; /* Darker text color */
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased; /* Smoother font rendering */
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Container for the main application content */
+#root {
+  display: flex;
+  justify-content: center; /* Center the content horizontally */
+  align-items: flex-start; /* Align to the top vertically */
+  min-height: 100vh; /* Ensure it takes full viewport height */
+  padding-top: 50px; /* Add some space from the top */
+  box-sizing: border-box; /* Include padding in element's total width/height */
+}
+
+/* Styles for the main form container */
+.dna-form-container {
+  max-width: 600px; /* Limit width for better readability */
+  width: 100%; /* Make it responsive */
+  /* Material-UI Card already has shadows and background, but you can override here if needed */
+  /* background-color: white; */
+  /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+  /* border-radius: 8px; */
+  /* padding: 20px; */ /* CardContent handles padding */
+}
+
+/* Utility classes based on your App.tsx */
+
+/* Margin top utilities */
+.mt-8 {
+  margin-top: 32px !important; /* !important to override MUI defaults if needed, common in utility frameworks */
+}
+
+/* Space between child elements in the y-direction (vertical) */
+.space-y-6 > *:not([hidden]) ~ *:not([hidden]) {
+  margin-top: 24px !important; /* 6 * 4px = 24px (common Tailwind scaling) */
+}
+
+.space-y-4 > *:not([hidden]) ~ *:not([hidden]) {
+  margin-top: 16px !important; /* 4 * 4px = 16px */
+}
+
+/* Gap between child elements */
+.gap-2 {
+  gap: 8px !important; /* 2 * 4px = 8px */
+}
+
+/* Basic flexbox utilities, if not covered by MUI Box props */
+.display-flex {
+  display: flex;
+}
+
+.justify-content-space-between {
+  justify-content: space-between;
+}
+
+/* Text wrapping for DNA string */
+.MuiTypography-root[sx*="whiteSpace: 'pre-wrap'"] { /* Target Typography with specific sx prop */
+  white-space: pre-wrap; /* Preserve whitespace and break lines */
+  word-break: break-all; /* Break long words to prevent overflow */
+}
+
+
+/* You might have other custom styles for specific elements not covered by MUI */
+/* For example: */
+/* .custom-button {
+  background-color: #007bff;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+} */

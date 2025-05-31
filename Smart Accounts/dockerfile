@@ -1,0 +1,18 @@
+# Dockerfile
+FROM node:18
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy everything else
+COPY . .
+
+# Build TypeScript (if any)
+RUN npm run build || true
+
+# Default command: compile contracts
+CMD ["npx", "hardhat", "compile"]
