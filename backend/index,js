@@ -1,0 +1,83 @@
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+const { unlink } = require('fs/promises');
+const fs = require('fs');
+
+const moderate = require('./services/HiveModeration'); // already uses module.exports
+const storeModeratedFile = require('./services/IPFSindex').default; // uses `export default`
+
+const app = express();
+const port = 3001;
+const upload = multer({ dest: 'uploads/' });
+
+app.use(cors());
+app.use(express.json());
+
+// Health check
+app.get('/', (_req, res) => {
+  res.send('Server is running!');
+});
+
+// DNA Encoding
+app.post('/encode', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).send('No file uploaded');
+
+  const filePath = req.file.path;
+  const py = spawn('python3', ['wukong_runner.py', 'encode', filePath]);
+
+  let output = '';
+  py.stdout.on('data', (data) => output += data.toString());
+  py.stderr.on('data', (err) => console.error('Python error:', err.toString()));
+
+  py.on('close', async () => {
+    await unlink(filePath); // clean temp
+    res.send(output.trim());
+  });
+});
+
+// Moderation Endpoint
+app.post('/moderate', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).send('No file uploaded');
+
+  try {
+    const result = await moderate(req.file.path);
+    res.send({ class: result.class, score: result.score });
+  } catch (err) {
+    console.error('Moderation error:', err);
+    res.status(500).send({ message: 'Moderation failed' });
+  }
+});
+
+// Full Upload + Store + Digest Generation
+app.post('/upload-and-store', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).send('No file uploaded');
+  try {
+    const buffer = fs.readFileSync(req.file.path);
+    const { digest } = await storeModeratedFile(buffer, req.file.originalname, req.file.mimetype);
+    await unlink(req.file.path);
+    res.send({ digest });
+  } catch (err) {
+    console.error('Store & Index error:', err);
+    res.status(500).send({ message: 'Store & Index failed' });
+  }
+});
+
+// Hash Digest Endpoint
+app.post('/hashhex', async (req, res) => {
+  const { cid, fileName, fileType, fileSize, score } = req.body;
+
+  if (!cid || !fileName || !fileType || !fileSize || score == null) {
+    return res.status(400).send('Missing required fields');
+  }
+
+  const raw = JSON.stringify({ cid, fileName, fileType, fileSize, score });
+  const digest = crypto.createHash('sha256').update(raw).digest('hex');
+  res.send(digest);
+});
+
+app.listen(port, () => {
+  console.log(`✅ Backend running at http://localhost:${port}`);
+});
