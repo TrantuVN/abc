@@ -1,3 +1,4 @@
+
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -8,14 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-const storeModeratedFile = require('./services/IPFSindex'); // Assuming this handles IPFS client creation internally
+const storeModeratedFile = require('./services/IPFSindex');
 
 const app = express();
 const port = 3000;
 const upload = multer({ dest: 'uploads/' });
-
-// The Hive API credentials
-const HIVE_API_KEY = "CzlyTS6RdJ2IlMsN7w+p3Q==";
 
 app.use(cors());
 app.use(express.json());
@@ -24,6 +22,7 @@ app.use(express.json());
 app.get('/', (_req, res) => {
   res.send('Server is running!');
 });
+
 /**
  * Helper function to run Python scripts.
  * @param {string[]} args - Arguments to pass to the Python script.
@@ -33,11 +32,11 @@ async function runPythonScript(args) {
   return new Promise((resolve, reject) => {
     // Ensure this path points to the parent directory of 'StorageD'
     const storageDParentPath = 'C:\\Users\\Multiplexon\\Desktop\\thesis\\Scoin - Copy\\Storage-D';
-
     // Set PYTHONPATH
     process.env.PYTHONPATH = process.env.PYTHONPATH ?
       `${process.env.PYTHONPATH};${storageDParentPath}` :
       storageDParentPath;
+
 
     const pythonProcess = spawn('python', args);
     let stdout = '';
@@ -62,13 +61,12 @@ async function runPythonScript(args) {
   });
 }
 
-// 🧬 ENCODE - Main API route for file encoding
+// ENCODE - Main API route for file encoding
 app.post('/encode', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  // Helper to convert to integer, with validation
   const toInt = (v, name) => {
     const n = Number(v);
     if (!Number.isInteger(n)) throw new Error(`${name} must be an integer`);
@@ -83,28 +81,35 @@ app.post('/encode', upload.single('file'), async (req, res) => {
       minGC: toInt(req.body.minGC, 'minGC'),
       maxGC: toInt(req.body.maxGC, 'maxGC'),
       ecc: toInt(req.body.ecc, 'ecc'),
-      flanking: req.body.flanking, // 'Yes' or 'No' string
+      flanking: req.body.flanking,
       redundancy: req.body.redundancy === 'true',
     };
+
+    if (opts.encodedLength <= 0) throw new Error('encodedLength must be positive');
+    if (opts.homopolymer <= 0) throw new Error('homopolymer must be positive');
+    if (opts.minGC < 0 || opts.minGC > 100) throw new Error('minGC must be between 0 and 100');
+    if (opts.maxGC < 0 || opts.maxGC > 100) throw new Error('maxGC must be between 0 and 100');
+    if (opts.minGC > opts.maxGC) throw new Error('minGC must not exceed maxGC');
+    if (opts.ecc < 0) throw new Error('ecc must be non-negative');
+    if (!['Yes', 'No'].includes(opts.flanking)) throw new Error('flanking must be "Yes" or "No"');
   } catch (err) {
-    await unlink(req.file.path).catch(() => {}); // Clean up file on validation error
+    await unlink(req.file.path).catch(() => {});
     return res.status(400).json({ error: err.message });
   }
 
-  // Build arguments for the Python script
   const scriptPath = path.resolve(__dirname, 'services', 'wk.py');
   const pythonArgs = [
     scriptPath,
-    'encode', // "mode" argument for CLI
+    'encode',
     req.file.path,
     opts.encodedLength,
     opts.homopolymer,
     opts.minGC,
     opts.maxGC,
-    opts.ecc, // used as rs_num in Python
+    opts.ecc,
     opts.flanking,
     opts.redundancy,
-  ].map(String); // Ensure all args are strings for spawn
+  ].map(String);
 
   try {
     const pythonOutput = await runPythonScript(pythonArgs);
@@ -117,27 +122,25 @@ app.post('/encode', upload.single('file'), async (req, res) => {
       return res.status(500).json({ error: 'Unexpected output format: dnaStrands not an array' });
     }
     res.json({ dnaStrands: parsedResult.dnaStrands });
-
   } catch (err) {
     console.error('Encoding process error:', err);
-    // Attempt to parse error from Python stderr if it's JSON
     try {
       const parsedPythonError = JSON.parse(err.message.replace('Python script failed: ', ''));
       if (parsedPythonError.error) {
         return res.status(400).json({ error: parsedPythonError.error });
       }
-    } catch (parseErr) {
-      // Not a JSON error from Python, return general error
-    }
+    } catch (parseErr) {}
     res.status(500).json({ error: 'Encoding process failed: ' + err.message });
   } finally {
-    // Always clean up the uploaded file
     await unlink(req.file.path).catch(deleteErr => console.error('File deletion error:', deleteErr));
   }
 });
 
-// MODERATE - API route for content moderation (file or text)
-app.post('/detect', upload.single('file'), async (req, res) => {
+// The Hive API credentials
+const HIVE_API_KEY = "7f4bGDtwK5PNfQsZUPe+Gw==";
+
+// API endpoint for content moderation
+app.post("/moderate", upload.single("file"), async (req, res) => {
   try {
     const { contentType } = req.body;
 
@@ -149,88 +152,48 @@ app.post('/detect', upload.single('file'), async (req, res) => {
     let requestBody = {};
     let apiUrl = "";
 
-    // Handle different content types with API v3 structure
     if (contentType === "text") {
       const content = req.body.content;
       if (!content) {
         return res.status(400).json({ error: "No text content provided" });
       }
-
-      // Request structure for text moderation API v3
-      requestBody = {
-        input: [
-          {
-            text: content,
-          },
-        ],
-      };
+      requestBody = { input: [{ text: content }] };
       apiUrl = "https://api.thehive.ai/api/v3/hive/text-moderation";
     } else {
       const file = req.file;
       if (!file) {
         return res.status(400).json({ error: "No file provided" });
       }
-
-      // Convert file to base64
       const fileBuffer = fs.readFileSync(file.path);
       const base64 = fileBuffer.toString("base64");
-
-      // Request structure for visual moderation API v3 (for both image and video)
-      requestBody = {
-        input: [
-          {
-            media_base64: base64,
-          },
-        ],
-      };
+      requestBody = { input: [{ media_base64: base64 }] };
       apiUrl = "https://api.thehive.ai/api/v3/hive/visual-moderation";
-
-      // Clean up uploaded file
       fs.unlinkSync(file.path);
     }
 
     console.log("Sending request to The Hive API v3...");
     console.log("API URL:", apiUrl);
     console.log("Request body structure:", {
-      input: [
-        {
-          [contentType === "text" ? "text" : "media_base64"]: "[CONTENT_HIDDEN]",
-        },
-      ],
+      input: [{ [contentType === "text" ? "text" : "media_base64"]: "[CONTENT_HIDDEN]" }],
     });
 
-    // Send to The Hive Moderation API v3
     const response = await axios.post(apiUrl, requestBody, {
       headers: requestHeaders,
-      timeout: 60000, // 60 seconds
+      timeout: 60000,
     });
 
-    // Process the response from The Hive API v3
-    let result = {
-      class: "unknown",
-      score: 0,
-      allClasses: [],
-    };
+    let result = { class: "unknown", score: 0, allClasses: [] };
     const output = response.data?.output?.[0];
-    console.log("output::", output);
-    if (response.data?.output?.[0]) {
-      result = {
-        class: "Success",
-        raw: response.data?.output?.[0],
-      };
+    if (output) {
+      result = { class: "Success", raw: output };
     } else {
-      result = {
-        class: "error",
-        raw: response.data,
-      };
+      result = { class: "error", raw: response.data };
     }
 
     res.json(result);
   } catch (error) {
     console.error("Server error:", error.message);
     if (error.response) {
-      console.error("API Response Status:", error.response.status);
-      console.error("API Response Data:", JSON.stringify(error.response.data, null, 2));
       res.status(error.response.status).json({
         error: "Error from moderation service",
         details: error.response.data,
@@ -245,37 +208,45 @@ app.post('/detect', upload.single('file'), async (req, res) => {
   }
 });
 
-// IPFS UPLOAD - API route to upload and store files on IPFS
+// IPFS UPLOAD - API route to upload and store moderated files on IPFS
 app.post('/upload-and-store', upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded');
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
 
+  const filePath = req.file.path;
   try {
-    const buffer = fs.readFileSync(req.file.path);
-    const { digest } = await storeModeratedFile(buffer, req.file.originalname, req.file.mimetype);
-    res.type('text/plain').send(digest);
+    console.log('Uploading to IPFS:', req.file.originalname);
+    const fileBuffer = fs.readFileSync(filePath);
+    const { digest } = await storeModeratedFile(fileBuffer, req.file.originalname, req.file.mimetype);
+
+    res.json({ digest });
   } catch (err) {
-    console.error('Store & Index error:', err);
-    res.status(500).type('text/plain').send(`Store & Index failed: ${err.message}`);
+    console.error('Upload and store error:', err);
+    res.status(500).json({
+      error: 'Failed to process file',
+      details: err.message,
+    });
   } finally {
-    await unlink(req.file.path).catch(err => console.error('File deletion error:', err));
+    await unlink(filePath).catch(err => console.error('File deletion error:', err));
   }
 });
 
 // HASH - API route to generate a SHA256 hash of metadata
 app.post('/hashhex', async (req, res) => {
-  const { cid, fileName, fileType, fileSize, score } = req.body;
+  const { cid, fileName, fileType, fileSize } = req.body;
 
-  if (!cid || !fileName || !fileType || fileSize == null || score == null) {
-    return res.status(400).type('text/plain').send('Missing required fields');
+  if (!cid || !fileName || !fileType || fileSize == null) {
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    const raw = JSON.stringify({ cid, fileName, fileType, fileSize, score });
+    const raw = JSON.stringify({ cid, fileName, fileType, fileSize });
     const digest = crypto.createHash('sha256').update(raw).digest('hex');
-    res.type('text/plain').send(digest);
+    res.json({ digest });
   } catch (err) {
     console.error('Hash generation error:', err);
-    res.status(500).type('text/plain').send('Hash generation failed');
+    res.status(500).json({ error: 'Hash generation failed', details: err.message });
   }
 });
 

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
@@ -37,19 +38,21 @@ function App() {
     }
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('contentType', 'file');
 
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('http://localhost:3000/detect', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      console.log('Sending request to /moderate with formData:', [...formData.entries()]);
+      const res = await axios.post('http://localhost:3000/moderate', formData);
+      console.log('Moderation response:', res.data);
 
-      const { class: cls } = res.data;
-      setModerationResult({ class: cls });
+      const { class: cls, score = 0 } = res.data;
+      setModerationResult({ class: cls, score });
       return true;
     } catch (err) {
-      const message = err.response?.data?.error || 'Moderation failed';
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Moderation failed';
+      console.error('Moderation error:', err);
       setError(message);
       return false;
     } finally {
@@ -68,26 +71,24 @@ function App() {
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('http://localhost:3000/upload-and-store', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return res.data;
+      const res = await axios.post('http://localhost:3000/upload-and-store', formData);
+      return res.data.digest;
     } catch (err) {
-      setError(err.response?.data || 'IPFS upload failed');
+      setError(err.response?.data?.error || 'IPFS upload failed');
       return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const submitHash = async (cid) => {
+  const submitHash = async (digest) => {
     if (!file || !moderationResult) {
       setError('Run moderation first');
       return false;
     }
 
     const body = {
-      cid,
+      cid: digest,
       fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
@@ -97,10 +98,10 @@ function App() {
       setLoading(true);
       setError('');
       const res = await axios.post('http://localhost:3000/hashhex', body);
-      setDigest(res.data);
+      setDigest(res.data.digest);
       return true;
     } catch (err) {
-      setError(err.response?.data || 'Hash generation failed');
+      setError(err.response?.data?.error || 'Hash generation failed');
       return false;
     } finally {
       setLoading(false);
@@ -138,9 +139,7 @@ function App() {
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('http://localhost:3000/encode', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const res = await axios.post('http://localhost:3000/encode', formData);
       if (res.data && Array.isArray(res.data.dnaStrands)) {
         setEncodedDNA(res.data.dnaStrands.join('\n'));
       } else {
@@ -168,10 +167,10 @@ function App() {
       const moderated = await submitModeration();
       if (!moderated) return;
 
-      const cid = await submitUploadToIPFS();
-      if (!cid) return;
+      const digest = await submitUploadToIPFS();
+      if (!digest) return;
 
-      await submitHash(cid);
+      await submitHash(digest);
     } finally {
       setLoading(false);
     }
@@ -243,6 +242,7 @@ function App() {
           <>
             <h3>Moderation Result</h3>
             <p><strong>Class:</strong> {moderationResult.class}</p>
+            <p><strong>Score:</strong> {moderationResult.score !== undefined ? moderationResult.score.toFixed(4) : 'N/A'}</p>
           </>
         )}
       </div>
