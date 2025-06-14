@@ -1,0 +1,24 @@
+{
+  "name": "sm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy:ep": "npx hardhat run scripts/deployEP.js",
+    "deploy:ex": "npx hardhat run scripts/execute.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@account-abstraction/contracts": "^0.6.0",
+    "@ethersproject/address": "^5.8.0",
+    "@openzeppelin/contracts": "^4.9.6",
+    "hardhat": "^2.24.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+  }
+}

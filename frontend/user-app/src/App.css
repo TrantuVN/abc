@@ -1,0 +1,173 @@
+/* App.css */
+
+body {
+  background-color: #000000; /* Sets the entire body background to black */
+  margin: 0; /* Remove default body margin */
+  /* These flex properties on body will center the single child (the #root div) */
+  display: flex;
+  justify-content: center; /* Horizontally center #root */
+  align-items: center; /* Vertically center #root */
+  min-height: 100vh; /* Ensure body takes full viewport height */
+  color: white; /* Default text color for the entire app */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif; /* Keep the font family */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.App {
+  text-align: center; /* Center align text within the app container */
+  /* The .App itself will be the centered block.
+     We don't need flexbox here to center *itself* because body handles it.
+     But we might use flexbox *inside* .App if needed for internal layout. */
+  max-width: 900px; /* Limit the maximum width of your app content */
+  width: 100%; /* Take full available width up to max-width */
+  padding: 2rem; /* Add internal padding */
+  box-sizing: border-box; /* Include padding in element's total width */
+  background-color: #1a1a1a; /* A slightly darker background for the app container */
+  border-radius: 8px; /* Slightly rounded corners */
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3); /* Optional: A subtle glow */
+  /* Remove min-height: 100vh; from here to let content dictate height,
+     as body's min-height already ensures vertical space */
+}
+
+/* Ensure headings and paragraphs are white */
+h1, h3, p, label {
+  color: white;
+}
+
+/* Common styles for inputs, textareas, buttons, and selects */
+input[type="text"],
+input[type="number"],
+input[type="file"], /* Ensure file input is visible */
+textarea,
+button,
+select {
+  background-color: white; /* White background */
+  color: black; /* Black text */
+  border: 1px solid #ddd; /* Subtle border */
+  padding: 10px 15px;
+  margin: 5px;
+  border-radius: 5px;
+  box-sizing: border-box; /* Crucial for input widths */
+}
+
+input[type="file"] {
+    /* Specific styles for file input if needed, as it's tricky to style */
+    color: white; /* Keep text visible */
+    background-color: transparent; /* Or a light background */
+    border: 1px solid white;
+}
+
+
+button {
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover:not([disabled]) {
+  background-color: #f0f0f0;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Specific styling for the 'pre' tag for hash results */
+pre {
+  background-color: #333;
+  color: #0f0; /* Green color for hash digest */
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto; /* Allow horizontal scrolling for long hashes */
+  word-break: break-all; /* Break long words */
+}
+
+textarea {
+    resize: vertical; /* Allow vertical resizing for textareas */
+}
+
+/* Styling for radio buttons and their labels */
+label {
+    display: inline-flex; /* Use flexbox for inline-flex items */
+    align-items: center; /* Vertically align items */
+    margin-right: 15px; /* Spacing between radio options */
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+label input[type="radio"],
+label input[type="checkbox"] {
+    margin-right: 5px; /* Space between input and its text */
+}
+
+/* Specific styling for the encoding parameters section */
+.encoding-params-section {
+    width: 100%; /* Make the section take full width of its parent */
+    display: flex; /* Use flexbox to arrange items */
+    flex-direction: column; /* Stack items vertically */
+    align-items: center; /* Center items within this section */
+}
+
+.encoding-params-section label {
+    display: flex; /* Use flexbox for individual parameter labels */
+    justify-content: space-between; /* Push label text and input to ends */
+    align-items: center;
+    width: 80%; /* Control the width of each parameter row */
+    max-width: 300px; /* Optional: Limit width for param inputs */
+    margin-bottom: 10px;
+}
+
+.encoding-params-section input,
+.encoding-params-section select {
+    width: 50%; /* Give inputs/selects a percentage width */
+    max-width: 150px; /* Max width for inputs */
+    margin-left: 10px; /* Space from label text */
+}
+
+/* App-logo, App-header, App-link, my-button, and keyframes remain unchanged */
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #000000;
+  /* min-height: 100vh; */ /* Removed as body handles overall height */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.my-button {
+  background-color: white;
+  color: black;
+  border: 1px solid white;
+  padding: 10px 15px;
+  margin: 5px;
+  border-radius: 5px;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
