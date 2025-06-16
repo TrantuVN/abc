@@ -1,4 +1,3 @@
-
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -8,8 +7,9 @@ const { unlink } = require('fs/promises');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { ethers } = require('ethers'); 
 
-const storeModeratedFile = require('./services/IPFSindex');
+const storeModeratedFile = require('./services/IPFSindex.js'); 
 
 const app = express();
 const port = 3000;
@@ -30,20 +30,21 @@ app.get('/', (_req, res) => {
  */
 async function runPythonScript(args) {
   return new Promise((resolve, reject) => {
-    // Ensure this path points to the parent directory of 'StorageD'
     const storageDParentPath = 'C:\\Users\\Multiplexon\\Desktop\\thesis\\Scoin - Copy\\Storage-D';
-    // Set PYTHONPATH
-    process.env.PYTHONPATH = process.env.PYTHONPATH ?
-      `${process.env.PYTHONPATH};${storageDParentPath}` :
-      storageDParentPath;
-
+    process.env.PYTHONPATH = process.env.PYTHONPATH
+      ? `${process.env.PYTHONPATH};${storageDParentPath}`
+      : storageDParentPath;
 
     const pythonProcess = spawn('python', args);
     let stdout = '';
     let stderr = '';
 
-    pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-    pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
 
     pythonProcess.on('close', (code) => {
       if (code === 0) {
@@ -132,12 +133,14 @@ app.post('/encode', upload.single('file'), async (req, res) => {
     } catch (parseErr) {}
     res.status(500).json({ error: 'Encoding process failed: ' + err.message });
   } finally {
-    await unlink(req.file.path).catch(deleteErr => console.error('File deletion error:', deleteErr));
+    await unlink(req.file.path).catch((deleteErr) => console.error('File deletion error:', deleteErr));
   }
 });
 
+
 // The Hive API credentials
-const HIVE_API_KEY = "7f4bGDtwK5PNfQsZUPe+Gw==";
+const HIVE_API_KEY = 'tpLvzIMIVc5YpBs1EJYQLA==';
+console.log(HIVE_API_KEY)
 
 // API endpoint for content moderation
 app.post("/moderate", upload.single("file"), async (req, res) => {
@@ -146,7 +149,9 @@ app.post("/moderate", upload.single("file"), async (req, res) => {
 
     const requestHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${HIVE_API_KEY}`,
+      Authorization: `Bearer ${HIVE_API_KEY}`, // Current method
+      // Alternatively, test with API key in a custom header if required
+      // 'x-api-key': HIVE_API_KEY, // Uncomment and test if needed
     };
 
     let requestBody = {};
@@ -173,27 +178,71 @@ app.post("/moderate", upload.single("file"), async (req, res) => {
 
     console.log("Sending request to The Hive API v3...");
     console.log("API URL:", apiUrl);
+    console.log("Request headers:", requestHeaders);
     console.log("Request body structure:", {
       input: [{ [contentType === "text" ? "text" : "media_base64"]: "[CONTENT_HIDDEN]" }],
     });
 
     const response = await axios.post(apiUrl, requestBody, {
       headers: requestHeaders,
-      timeout: 60000,
     });
 
-    let result = { class: "unknown", score: 0, allClasses: [] };
+    console.log("Full Response from The Hive API:", JSON.stringify(response.data, null, 2));
+
     const output = response.data?.output?.[0];
-    if (output) {
-      result = { class: "Success", raw: output };
-    } else {
-      result = { class: "error", raw: response.data };
+    if (!output) {
+      console.warn("No output found in Hive API response:", response.data);
+      return res.status(400).json({ error: "No moderation output received", raw: response.data });
     }
 
+    let result = { allClasses: [], raw: response.data };
+    let classes = [];
+
+    if (contentType === "text" && Array.isArray(output.classes)) {
+      classes = output.classes.map((cls) => ({
+        class: cls.class,
+        score: cls.value,
+      }));
+    } else if (contentType !== "text" && output.predictions?.[0]?.classes) {
+      const predictionClasses = output.predictions[0].classes;
+      classes = Object.entries(predictionClasses).map(([cls, score]) => ({
+        class: cls,
+        score: score,
+      }));
+    } else {
+      console.warn("Unexpected output structure:", output);
+      result.error = "Unexpected moderation output format";
+    }
+
+    if (classes.length > 0) {
+      const highestClass = classes.reduce((prev, current) =>
+        prev.score > current.score ? prev : current
+      );
+      result = {
+        class: highestClass.class,
+        score: highestClass.score,
+        allClasses: classes,
+        raw: response.data,
+      };
+    } else if (!result.error) {
+      console.warn("No classes found in Hive API response:", output);
+      result.error = "No moderation classes found";
+    }
+
+    console.log("Moderation result:", result);
     res.json(result);
   } catch (error) {
     console.error("Server error:", error.message);
     if (error.response) {
+      console.error("API Response Status:", error.response.status);
+      console.error("API Response Data:", JSON.stringify(error.response.data, null, 2));
+      if (error.response.status === 401) {
+        return res.status(401).json({
+          error: "Unauthorized API key",
+          details: error.response.data,
+          message: "Please verify your HIVE_API_KEY and ensure it has the correct permissions.",
+        });
+      }
       res.status(error.response.status).json({
         error: "Error from moderation service",
         details: error.response.data,
@@ -207,46 +256,40 @@ app.post("/moderate", upload.single("file"), async (req, res) => {
     }
   }
 });
-
 // IPFS UPLOAD - API route to upload and store moderated files on IPFS
-app.post('/upload-and-store', upload.single('file'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
-  const filePath = req.file.path;
+app.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    console.log('Uploading to IPFS:', req.file.originalname);
-    const fileBuffer = fs.readFileSync(filePath);
-    const { digest } = await storeModeratedFile(fileBuffer, req.file.originalname, req.file.mimetype);
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    res.json({ digest });
+    const { path, originalname: fileName, mimetype: fileType } = req.file;
+    const buffer = fs.readFileSync(path);
+    console.log(`Processing: ${fileName}`);
+
+    // Upload IPFS, lưu MongoDB
+    const { cid, digest, mongoId } = await storeModeratedFile(buffer, fileName, fileType);
+
+    // Xóa file tạm
+    fs.unlinkSync(path);
+
+    // Trả kết quả
+    res.json({ fileId: mongoId, ipfsHash: cid, digest, fileName });
   } catch (err) {
-    console.error('Upload and store error:', err);
-    res.status(500).json({
-      error: 'Failed to process file',
-      details: err.message,
-    });
-  } finally {
-    await unlink(filePath).catch(err => console.error('File deletion error:', err));
+    console.error('Upload error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
-
-// HASH - API route to generate a SHA256 hash of metadata
-app.post('/hashhex', async (req, res) => {
-  const { cid, fileName, fileType, fileSize } = req.body;
-
-  if (!cid || !fileName || !fileType || fileSize == null) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
+// API lấy metadata
+app.get('/file/:id', async (req, res) => {
   try {
-    const raw = JSON.stringify({ cid, fileName, fileType, fileSize });
-    const digest = crypto.createHash('sha256').update(raw).digest('hex');
-    res.json({ digest });
+    const { MongoClient, ObjectId } = require('mongodb');
+    const client = await MongoClient.connect('mongodb://127.0.0.1:27017', { useNewUrlParser: true, useUnifiedTopology: true });
+    const file = await client.db('Databases').collection('files').findOne({ _id: new ObjectId(req.params.id) });
+    await client.close();
+
+    if (!file) return res.status(404).json({ error: 'File not found' });
+    res.json({ fileId: file._id.toString(), ipfsHash: file.cid, digest: file.digest, fileName: file.fileName, fileType: file.fileType });
   } catch (err) {
-    console.error('Hash generation error:', err);
-    res.status(500).json({ error: 'Hash generation failed', details: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 

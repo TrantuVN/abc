@@ -27,7 +27,7 @@ body {
   box-sizing: border-box; /* Include padding in element's total width */
   background-color: #1a1a1a; /* A slightly darker background for the app container */
   border-radius: 8px; /* Slightly rounded corners */
-  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3); /* Optional: A subtle glow */
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);  /* Optional: A subtle glow */
   /* Remove min-height: 100vh; from here to let content dictate height,
      as body's min-height already ensures vertical space */
 }
