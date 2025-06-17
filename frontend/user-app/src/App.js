@@ -46,10 +46,7 @@ function App() {
     try {
       setLoading(true);
       setError('');
-      console.log('Sending request to /moderate with formData:', [...formData.entries()]);
       const res = await axios.post('http://localhost:3000/moderate', formData, { timeout: 60000 });
-      console.log('Moderation response:', res.data);
-
       const { error: modError, class: cls, score, allClasses = [], raw = {} } = res.data;
       setModerationResult({ class: cls, score, allClasses, raw });
       if (modError) {
@@ -59,14 +56,9 @@ function App() {
       return true;
     } catch (err) {
       const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Moderation failed';
-      console.error('Moderation error:', err);
-      if (err.response?.status === 401) {
-        setError('Unauthorized API key. Please check your HIVE_API_KEY and permissions.');
-      } else {
-        setError(message);
-      }
-      setModerationResult({ raw: err.response?.data || {} }); // Lưu raw để debug
-      return true; // Tiếp tục nếu muốn bỏ qua lỗi
+      setError(err.response?.status === 401 ? 'Unauthorized API key. Please check your HIVE_API_KEY.' : message);
+      setModerationResult({ raw: err.response?.data || {} });
+      return true;
     } finally {
       setLoading(false);
     }
@@ -83,22 +75,13 @@ function App() {
     try {
       setLoading(true);
       setError('');
-      console.log('Sending request to /upload with formData:', [...formData.entries()]);
       const res = await axios.post('http://localhost:3000/upload', formData, { timeout: 120000 });
-      console.log('IPFS upload response:', res.data);
       setIpfsHash(res.data.ipfsHash);
       setFileId(res.data.fileId);
       setDigest(res.data.digest);
       return res.data.digest;
     } catch (err) {
-      console.error('IPFS upload error details:', {
-        message: err.message,
-        status: err.response?.status,
-        data: err.response?.data,
-        code: err.code,
-      });
-      const errorMessage = err.response?.data?.error || `IPFS upload failed: ${err.message}`;
-      setError(errorMessage);
+      setError(err.response?.data?.error || `IPFS upload failed: ${err.message}`);
       return null;
     } finally {
       setLoading(false);
@@ -116,8 +99,7 @@ function App() {
       setDigest(digest);
       return true;
     } catch (err) {
-      setError('Hash processing failed: ' + (err.message || 'Unknown error'));
-      console.error('Hash processing error:', err);
+      setError('Hash processing failed: ' + err.message);
       return false;
     } finally {
       setLoading(false);
@@ -129,16 +111,8 @@ function App() {
       setError('Please select a file');
       return false;
     }
-    if (
-      encodedLength <= 0 ||
-      homopolymer <= 0 ||
-      minGC < 0 ||
-      minGC > 100 ||
-      maxGC < 0 ||
-      maxGC > 100 ||
-      minGC > maxGC
-    ) {
-      setError('Invalid encoding parameters. Please check the values.');
+    if (encodedLength <= 0 || homopolymer <= 0 || minGC < 0 || minGC > 100 || maxGC < 0 || maxGC > 100 || minGC > maxGC) {
+      setError('Invalid encoding parameters.');
       return false;
     }
 
@@ -156,18 +130,15 @@ function App() {
       setLoading(true);
       setError('');
       const res = await axios.post('http://localhost:3000/encode', formData, { timeout: 60000 });
-      console.log('Encode response:', res.data);
       if (res.data && Array.isArray(res.data.dnaStrands)) {
         setEncodedDNA(res.data.dnaStrands.join('\n'));
       } else {
-        setError('Unexpected response format from encoder.');
+        setError('Unexpected response from encoder.');
         setEncodedDNA('');
       }
       return true;
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Encoding failed';
-      setError(errorMessage);
-      console.error('Encode error:', err);
+      setError(err.response?.data?.error || err.message || 'Encoding failed');
       setEncodedDNA('');
       return false;
     } finally {
@@ -187,26 +158,22 @@ function App() {
 
       const moderated = await submitModeration();
       if (!moderated) {
-        console.log('Moderation failed, but continuing upload process');
-        // return; // Bỏ comment nếu muốn dừng khi moderation thất bại
+        console.log('Moderation failed, continuing upload');
       }
 
       const digest = await submitUploadToIPFS();
       if (!digest) {
-        console.log('IPFS upload failed, stopping upload process');
+        console.log('IPFS upload failed, stopping');
         return;
       }
 
       const hashed = await submitHash(digest);
       if (!hashed) {
-        console.log('Hash processing failed, stopping upload process');
+        console.log('Hash processing failed, stopping');
         return;
       }
-
-      console.log('Upload process completed successfully');
     } catch (err) {
-      setError('Upload process failed: ' + (err.message || 'Unknown error'));
-      console.error('Upload error:', err);
+      setError('Upload failed: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -253,10 +220,10 @@ function App() {
             Max GC%: <input type="number" value={maxGC} onChange={(e) => setMaxGC(Number(e.target.value))} />
           </label>
           <label>
-            ECC (Error Correction Code): <input type="number" value={ecc} onChange={(e) => setEcc(Number(e.target.value))} />
+            ECC: <input type="number" value={ecc} onChange={(e) => setEcc(Number(e.target.value))} />
           </label>
           <label>
-            Flanking (Add Primer):{' '}
+            Flanking: 
             <select value={flanking} onChange={(e) => setFlanking(e.target.value)}>
               <option value="No">No</option>
               <option value="Yes">Yes</option>
@@ -267,9 +234,7 @@ function App() {
             Redundancy
           </label>
           <div style={{ marginTop: '1rem', gridColumn: '1 / -1' }}>
-            <button onClick={handleEncode} disabled={loading}>
-              ENCODE
-            </button>
+            <button onClick={handleEncode} disabled={loading}>ENCODE</button>
           </div>
         </div>
       )}
@@ -302,7 +267,7 @@ function App() {
           )}
           {digest && (
             <div style={{ marginBottom: '1rem' }}>
-              <strong>Hash (Digest):</strong>
+              <strong>Hash :</strong>
               <pre style={{ display: 'inline', marginLeft: '0.5rem' }}>{digest}</pre>
             </div>
           )}
@@ -322,18 +287,6 @@ function App() {
               <strong>Moderation Class:</strong> {moderationResult.class}
               <br />
               <strong>Moderation Score:</strong> {moderationResult.score.toFixed(4)}
-            </div>
-          )}
-          {moderationResult?.allClasses?.length > 0 && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>All Classes:</strong>
-              <ul>
-                {moderationResult.allClasses.map((cls, index) => (
-                  <li key={index}>
-                    {cls.class}: {cls.score.toFixed(4)}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
         </div>
