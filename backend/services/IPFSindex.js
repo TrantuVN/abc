@@ -1,19 +1,18 @@
+require('dotenv').config();
 const fs = require('fs');
 const { Readable } = require('stream');
 const crypto = require('crypto');
 const { MongoClient } = require('mongodb');
-const axios = require('axios');
+const PinataSDK = require('@pinata/sdk');
 
-// Cấu hình Pinata
-const PINATA_API_KEY = 'cc4b6c4563f6d8424a5b'; // replace your API Key 
-const PINATA_API_SECRET = 'ed0d5f8bb21df88bae1c36288e3bc97b8c49b6943bc9de5ec2ed481b6dba360d'; // replace your API Secret 
-const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
-// Utility to convert Buffer to Blob
-function bufferToBlob(buffer, mimeType) {
-  return new Blob([Buffer.from(buffer)], { type: mimeType });
-}
+// Pinata SDK
+const pinata = new PinataSDK({
+  pinataApiKey: process.env.PINATA_API_KEY,
+  pinataSecretApiKey: process.env.PINATA_API_SECRET,
+  pinataGateway: process.env.PINATA_GATEWAY,
+});
 
-// Khởi tạo MongoDB client
+// Initialize MongoDB client
 const mongoClient = new MongoClient(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017');
 const dbName = 'Databases';
 const collectionName = 'files';
@@ -37,60 +36,31 @@ initializeMongoDB().catch(err => {
 });
 
 // Hàm lưu file lên Pinata và MongoDB
-async function storeModeratedFile(buffer, fileName, fileType) {
+async function storeModeratedFile(buffer, fileName) {
   try {
-    if (!collection) {
-      throw new Error('MongoDB collection not initialized');
-    }
+    console.log(`Starting upload to Pinata: ${fileName}`);
 
-    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-      throw new Error(`Invalid file buffer for ${fileName}, size: ${buffer.length}`);
-    }
-
-    console.log(`Starting upload to Pinata: ${fileName}, Buffer size: ${buffer.length} bytes`);
-
-    // Chuyển Buffer thành Blob
-    const blob = bufferToBlob(buffer, fileType);
-    console.log(`Converted to Blob, size: ${blob.size} bytes`);
-
-    // Tạo form data để upload lên Pinata
-    const formData = new FormData();
-    formData.append('file', blob, fileName);
-    console.log('FormData prepared with file:', fileName);
-
-    // Gửi request tới Pinata, để axios tự động xử lý headers
-    const response = await axios.post(PINATA_API_URL, formData, {
-      headers: {
-        'pinata_api_key': PINATA_API_KEY,
-        'pinata_secret_api_key': PINATA_API_SECRET,
-      },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-     
+    // Upload file to Pinata using SDK
+    const result = await pinata.pinFileToIPFS(Readable.from(buffer), {
+      pinataMetadata: { name: fileName },
+      pinataOptions: { cidVersion: 0 },
     });
-
-    console.log('Pinata response received:', response.data);
-
-    const cid = response.data.IpfsHash;
-    if (!cid) {
-      throw new Error('Invalid CID returned from Pinata, response: ' + JSON.stringify(response.data));
-    }
+    const cid = result.IpfsHash;
+    console.log('Pinata upload successful, CID:', cid);
 
     // Tạo metadata
     const metadata = {
       cid,
       fileName,
-      fileType,
-      uploadTimestamp: new Date(),
     };
 
-    // Lưu vào MongoDB và lấy _id
+    // Lưu vào MongoDB
     const insertResult = await collection.insertOne(metadata);
     const mongoId = insertResult.insertedId.toString();
     console.log('MongoDB insert successful, mongoId:', mongoId);
 
-    // Tạo digest từ CID và MongoDB _id
-    const raw = JSON.stringify({ cid, mongoId });
+    // Tạo digest
+    const raw = JSON.stringify({ cid });
     const digest = crypto.createHash('sha256').update(raw).digest('hex');
 
     // Cập nhật document với digest
@@ -105,8 +75,7 @@ async function storeModeratedFile(buffer, fileName, fileType) {
     console.error('Error in storeModeratedFile:', {
       message: err.message,
       stack: err.stack,
-      response: err.response?.data,
-      status: err.response?.status,
+      fileName,
     });
     throw new Error(`Failed to store file: ${err.message}`);
   }
