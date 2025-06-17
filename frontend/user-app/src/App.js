@@ -90,7 +90,6 @@ function App() {
 
   const submitHash = async (digest) => {
     if (!file || !ipfsHash) {
-      setError('Run IPFS upload first');
       return false;
     }
     try {
@@ -205,40 +204,49 @@ function App() {
       </div>
 
       {showParams && (
-        <div className="encoding-parameters-grid" style={{ marginTop: '1rem' }}>
-          <h3>Encoding Parameters</h3>
-          <label>
-            Encoded Length: <input type="number" value={encodedLength} onChange={(e) => setEncodedLength(Number(e.target.value))} />
-          </label>
-          <label>
-            Homopolymer Limit: <input type="number" value={homopolymer} onChange={(e) => setHomopolymer(Number(e.target.value))} />
-          </label>
-          <label>
-            Min GC%: <input type="number" value={minGC} onChange={(e) => setMinGC(Number(e.target.value))} />
-          </label>
-          <label>
-            Max GC%: <input type="number" value={maxGC} onChange={(e) => setMaxGC(Number(e.target.value))} />
-          </label>
-          <label>
-            ECC: <input type="number" value={ecc} onChange={(e) => setEcc(Number(e.target.value))} />
-          </label>
-          <label>
-            Flanking: 
+  <div style={{ marginTop: '2rem', maxWidth: '700px', color: 'white' }}>
+    <h3 style={{ marginBottom: '1rem' }}>Encoding Parameters</h3>
+    <table style={{ width: '100%', borderSpacing: '0.75rem 0.5rem' }}>
+      <tbody>
+        <tr>
+          <td><label>Encoded Length:</label></td>
+          <td><input type="number" value={encodedLength} onChange={(e) => setEncodedLength(Number(e.target.value))} /></td>
+          <td><label>Homopolymer Limit:</label></td>
+          <td><input type="number" value={homopolymer} onChange={(e) => setHomopolymer(Number(e.target.value))} /></td>
+        </tr>
+        <tr>
+          <td><label>Min GC%:</label></td>
+          <td><input type="number" value={minGC} onChange={(e) => setMinGC(Number(e.target.value))} /></td>
+          <td><label>Max GC%:</label></td>
+          <td><input type="number" value={maxGC} onChange={(e) => setMaxGC(Number(e.target.value))} /></td>
+        </tr>
+        <tr>
+          <td><label>ECC:</label></td>
+          <td><input type="number" value={ecc} onChange={(e) => setEcc(Number(e.target.value))} /></td>
+          <td><label>Flanking:</label></td>
+          <td>
             <select value={flanking} onChange={(e) => setFlanking(e.target.value)}>
               <option value="No">No</option>
               <option value="Yes">Yes</option>
             </select>
-          </label>
-          <label style={{ gridColumn: '1 / -1' }}>
-            <input type="checkbox" checked={redundancy} onChange={() => setRedundancy(!redundancy)} />
-            Redundancy
-          </label>
-          <div style={{ marginTop: '1rem', gridColumn: '1 / -1' }}>
+          </td>
+        </tr>
+        <tr>
+          <td colSpan={4}>
+            <label>
+              <input type="checkbox" checked={redundancy} onChange={() => setRedundancy(!redundancy)} /> Redundancy
+            </label>
+          </td>
+        </tr>
+        <tr>
+          <td colSpan={4} style={{ textAlign: 'center', paddingTop: '1rem' }}>
             <button onClick={handleEncode} disabled={loading}>ENCODE</button>
-          </div>
-        </div>
-      )}
-
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+)}
       {encodedDNA && (
         <div style={{ marginTop: '2rem' }}>
           <h3>Encoded DNA Strands</h3>
@@ -250,49 +258,46 @@ function App() {
         <p style={{ color: 'gray', marginTop: '2rem' }}>No DNA output yet. Click ENCODE.</p>
       )}
 
-      {(ipfsHash || digest || fileId || moderationResult) && (
-        <div style={{ marginTop: '2rem' }}>
-          <h3>Upload Results</h3>
-          {ipfsHash && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>CID (IPFS Hash):</strong>
-              <pre style={{ display: 'inline', marginLeft: '0.5rem' }}>{ipfsHash}</pre>
-            </div>
-          )}
-          {fileId && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>MongoID (File ID):</strong>
-              <pre style={{ display: 'inline', marginLeft: '0.5rem' }}>{fileId}</pre>
-            </div>
-          )}
-          {digest && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Hash :</strong>
-              <pre style={{ display: 'inline', marginLeft: '0.5rem' }}>{digest}</pre>
-            </div>
-          )}
-          {moderationResult?.raw && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Raw Output:</strong>
-              <textarea
-                value={JSON.stringify(moderationResult.raw, null, 2)}
-                rows={10}
-                readOnly
-                style={{ width: '100%', fontFamily: 'monospace', marginTop: '0.5rem' }}
-              />
-            </div>
-          )}
-          {moderationResult?.class && moderationResult?.score && (
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Moderation Class:</strong> {moderationResult.class}
-              <br />
-              <strong>Moderation Score:</strong> {moderationResult.score.toFixed(4)}
-            </div>
-          )}
-        </div>
-      )}
+{(ipfsHash || digest || fileId || moderationResult) && (
+  <div style={{ marginTop: '2rem', maxWidth: '700px' }}>
+    <h3 style={{ marginBottom: '1rem', color: 'white' }}>Upload Results</h3>
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <tbody>
+        {ipfsHash && (
+          <tr>
+            <td style={{ color: 'white', fontWeight: 'bold', paddingRight: '1rem', textAlign: 'left', verticalAlign: 'top' }}>IPFS CID:</td>
+            <td style={{ color: 'white', backgroundColor: '#222', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all' }}>{ipfsHash}</td>
+          </tr>
+        )}
+        {fileId && (
+          <tr>
+            <td style={{ color: 'white', fontWeight: 'bold', paddingRight: '1rem', textAlign: 'left', verticalAlign: 'top' }}>MongoID:</td>
+            <td style={{ color: 'white', backgroundColor: '#222', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all' }}>{fileId}</td>
+          </tr>
+        )}
+        {digest && (
+          <tr>
+            <td style={{ color: 'white', fontWeight: 'bold', paddingRight: '1rem', textAlign: 'left', verticalAlign: 'top' }}>Hash:</td>
+            <td style={{ color: 'white', backgroundColor: '#222', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all' }}>{digest}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+
+    {moderationResult?.raw && (
+      <div style={{ marginTop: '1rem' }}>
+        <strong style={{ color: 'white' }}>Raw Output:</strong>
+        <textarea
+          value={JSON.stringify(moderationResult.raw, null, 2)}
+          rows={10}
+          readOnly
+          style={{ width: '100%', fontFamily: 'monospace', backgroundColor: '#111', color: 'white', padding: '0.5rem', borderRadius: '5px', fontSize: '0.85rem', marginTop: '0.5rem' }}
+        />
+      </div>
+    )}
+  </div>
+)}
     </div>
   );
-}
-
+  }
 export default App;
