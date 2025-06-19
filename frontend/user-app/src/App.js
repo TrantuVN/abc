@@ -128,7 +128,7 @@ function App() {
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('http://localhost:3000/encode', formData, { timeout: 60000 });
+      const res = await axios.post('http://localhost:3000/encode', formData);
       if (res.data && Array.isArray(res.data.dnaStrands)) {
         setEncodedDNA(res.data.dnaStrands.join('\n'));
       } else {

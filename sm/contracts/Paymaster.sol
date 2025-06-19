@@ -5,24 +5,28 @@ import {IPaymaster} from "@account-abstraction/contracts/interfaces/IPaymaster.s
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import "@account-abstraction/contracts/interfaces/UserOperation.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Paymaster is IPaymaster, Ownable {
     IEntryPoint public entryPoint;
-
+    IERC20 public token;
     uint256 public constant MAX_FREE_CALLS = 3;
+    uint256 public constant TOKEN_FEE = 10 * 10**18; // 10 tokens per transaction
     mapping(address => uint256) public userCalls;
 
     event UpdateEntryPoint(address indexed newEntryPoint, address indexed oldEntryPoint);
     event UserAccepted(address indexed user, uint256 callCount);
     event UserRejected(address indexed user, uint256 callCount);
+    event TokenCharged(address indexed user, uint256 amount);
 
     modifier onlyEntryPoint() {
         require(msg.sender == address(entryPoint), "Only EntryPoint can call");
         _;
     }
 
-    constructor(address _entryPoint) {
+    constructor(address _entryPoint, address _token) {
         entryPoint = IEntryPoint(_entryPoint);
+        token = IERC20(_token);
     }
 
     function setEntryPoint(address _newEntryPoint) external onlyOwner {
@@ -32,17 +36,18 @@ contract Paymaster is IPaymaster, Ownable {
 
     function validatePaymasterUserOp(
         UserOperation calldata userOp,
-        bytes32, // userOpHash (unused here)
-        uint256  // maxCost (unused here)
-    ) external view override returns (bytes memory context, uint256 validationData) {
+        bytes32,
+        uint256
+    ) external override returns (bytes memory context, uint256 validationData) {
         address sender = userOp.sender;
         uint256 calls = userCalls[sender];
 
         if (calls >= MAX_FREE_CALLS) {
-            revert("Paymaster: User has exceeded free limit");
+            require(token.balanceOf(sender) >= TOKEN_FEE, "Paymaster: Insufficient token balance");
+            require(token.allowance(sender, address(this)) >= TOKEN_FEE, "Paymaster: Insufficient token allowance");
         }
 
-        return (abi.encode(sender), 0); // no expiry (validationData = 0)
+        return (abi.encode(sender), 0); // No expiry
     }
 
     function postOp(
@@ -56,13 +61,20 @@ contract Paymaster is IPaymaster, Ownable {
         if (userCalls[sender] <= MAX_FREE_CALLS) {
             emit UserAccepted(sender, userCalls[sender]);
         } else {
-            emit UserRejected(sender, userCalls[sender]);
+            token.transferFrom(sender, address(this), TOKEN_FEE);
+            emit TokenCharged(sender, TOKEN_FEE);
+            emit UserAccepted(sender, userCalls[sender]);
         }
     }
 
-    // Optional admin function to reset a user's counter
+    // Reset user calls
     function resetUserCalls(address user) external onlyOwner {
         userCalls[user] = 0;
+    }
+
+    // Withdraw collected tokens
+    function withdrawTokens(address to, uint256 amount) external onlyOwner {
+        token.transfer(to, amount);
     }
 
     // Stake & Deposit Functions

@@ -1,18 +1,18 @@
 const hre = require("hardhat");
+const EP_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; 
 
 async function main() {
-    // Deploy the EntryPoint contract
-    const af = await hre.ethers.deployContract("AccountFactory");
 
-    // Wait for the deployment transaction to be mined
-    await af.waitForDeployment();
+  const AccountFactory = await hre.ethers.deployContract("AccountFactory",[EP_ADDRESS]);
+  
+  await AccountFactory.waitForDeployment();
 
-    // Log the deployed address of the EntryPoint contract
-    console.log(`AF deployed to ${af.target}`);
+  console.log(
+    `AccountFactory deployed to ${AccountFactory.target}` 
+  );
 }
 
-// Handle errors during deployment
 main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+  console.error(error);
+  process.exitCode = 1;
+})
